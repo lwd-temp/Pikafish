@@ -511,7 +511,7 @@ Value Search::Worker::search(
 
         if (threads.stop.load(std::memory_order_relaxed) || ss->ply >= MAX_PLY)
             return (ss->ply >= MAX_PLY && !ss->inCheck)
-                   ? evaluate(networks, pos, thisThread->optimism[us])
+                   ? evaluate(networks, pos, thisThread->optimism[us], alpha, beta)
                    : value_draw(thisThread->nodes);
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
@@ -600,7 +600,7 @@ Value Search::Worker::search(
         // Never assume anything about values stored in TT
         unadjustedStaticEval = tte->eval();
         if (unadjustedStaticEval == VALUE_NONE)
-            unadjustedStaticEval = evaluate(networks, pos, thisThread->optimism[us]);
+            unadjustedStaticEval = evaluate(networks, pos, thisThread->optimism[us], alpha, beta);
         else if (PvNode)
             Eval::NNUE::hint_common_parent_position(pos, networks);
 
@@ -612,7 +612,7 @@ Value Search::Worker::search(
     }
     else
     {
-        unadjustedStaticEval = evaluate(networks, pos, thisThread->optimism[us]);
+        unadjustedStaticEval = evaluate(networks, pos, thisThread->optimism[us], alpha, beta);
         ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, *thisThread, pos);
 
         // Static evaluation is saved as it was before adjustment by correction history
@@ -1307,7 +1307,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta,
     }
 
     if (ss->ply >= MAX_PLY)
-        return !ss->inCheck ? evaluate(networks, pos, thisThread->optimism[us]) : VALUE_DRAW;
+        return !ss->inCheck ? evaluate(networks, pos, thisThread->optimism[us], alpha, beta)
+                            : VALUE_DRAW;
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
@@ -1338,7 +1339,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta,
             // Never assume anything about values stored in TT
             unadjustedStaticEval = tte->eval();
             if (unadjustedStaticEval == VALUE_NONE)
-                unadjustedStaticEval = evaluate(networks, pos, thisThread->optimism[us]);
+                unadjustedStaticEval =
+                  evaluate(networks, pos, thisThread->optimism[us], alpha, beta);
             ss->staticEval = bestValue =
               to_corrected_static_eval(unadjustedStaticEval, *thisThread, pos);
 
@@ -1351,7 +1353,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta,
         {
             // In case of null move search, use previous static eval with a different sign
             unadjustedStaticEval = (ss - 1)->currentMove != Move::null()
-                                   ? evaluate(networks, pos, thisThread->optimism[us])
+                                   ? evaluate(networks, pos, thisThread->optimism[us], alpha, beta)
                                    : -(ss - 1)->staticEval;
             ss->staticEval       = bestValue =
               to_corrected_static_eval(unadjustedStaticEval, *thisThread, pos);
